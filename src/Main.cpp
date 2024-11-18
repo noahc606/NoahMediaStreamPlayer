@@ -3,14 +3,15 @@
 #include <stdio.h>
 #include <string>
 
-#include <nch/cpp-utils/fs/FsUtils.h>
-#include <nch/cpp-utils/fs/FilePath.h>
-#include <nch/ffmpeg-utils/media/MediaPlayer.h>
-#include <nch/sdl-utils/MainLoopDriver.h>
+#include <nch/cpp-utils/fs-utils.h>
+#include <nch/cpp-utils/filepath.h>
+#include <nch/cpp-utils/log.h>
+#include <nch/ffmpeg-utils/simplemediaplayer.h>
+#include <nch/sdl-utils/main-loop-driver.h>
 
 SDL_Renderer* renderer;
 SDL_Window* window;
-nch::MediaPlayer* mp;
+nch::SimpleMediaPlayer* smp;
 
 void tick()
 {
@@ -33,12 +34,12 @@ void draw(SDL_Renderer* rend)
     int w, h;
     SDL_GetWindowSize(window, &w, &h);
     SDL_Rect r; r.x = 25; r.y = 25; r.w = w-50; r.h = h-50;
-    mp->renderCurrentVidFrame(NULL, &r);
+    smp->renderCurrentVidFrame(NULL, &r);
         
     SDL_RenderPresent(rend);
 }
 
-int main()
+int main(int argc, char *argv[])
 {
     if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO|SDL_INIT_TIMER)!=0) {
         printf("Could not initialize SDL - %s\n.", SDL_GetError());
@@ -58,7 +59,8 @@ int main()
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_TARGETTEXTURE);
 
 
-    std::vector<std::string> dirFileList = nch::FsUtils::getDirContents("", nch::FsUtils::ONLY_FILES, false);
+    nch::FsUtils::ListSettings ls; ls.includeDirs = false;
+    std::vector<std::string> dirFileList = nch::FsUtils::getDirContents("", ls);
     std::string chosenURL = "???null???";
     for(int i = 0; i<dirFileList.size(); i++) {
         nch::FilePath fp(dirFileList[i]);
@@ -69,14 +71,30 @@ int main()
         }
     }
 
-    printf("Found valid video \"%s\", attempting to play...", chosenURL.c_str());
+    if(chosenURL=="???null???") {
+        nch::Log::log("Could not find any valid videos within \"/bin\" (.mp4, .webm, .mov, .mpeg).");
+    } else {
+        nch::Log::log("Found valid video \"%s\", attempting to play...", chosenURL.c_str());
+    }
 
     //std::string url = nch::FsUtils::getPathWithInferredExtension("video");
-    mp = new nch::MediaPlayer(chosenURL, renderer, 10000, true, true);
-    mp->decodeFull();
-    mp->startPlayback(true);
+    smp = new nch::SimpleMediaPlayer(chosenURL, renderer, -1, true, false);
+    smp->decodeFull();
+    smp->startPlayback();
+    //mp->initMediaPlaybackData();
+    //mp->startDecodingFrom(150000);
+    //mp->startPlayback(true);
 
     nch::MainLoopDriver mld(renderer, &tick, 40, &draw, 300);
 
+    nch::Log::log("Exiting.");
     return 0;
 }
+
+#if ( defined(_WIN32) || defined(WIN32) )
+int WinMain()
+{
+    char** x = new char*[1];
+    return main(0, x);
+}
+#endif
